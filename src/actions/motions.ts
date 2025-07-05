@@ -481,11 +481,7 @@ function createWordEndHandler(
       const result = ranges.find((x) => x.end > position.character);
 
       if (result) {
-        if (vimState.mode === Mode.Normal) {
-          return position.with({ character: result.end + 1 });
-        } else {
-          return position.with({ character: result.end });
-        }
+        return position.with({ character: result.end });
       } else {
         return position;
       }

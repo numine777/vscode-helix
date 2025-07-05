@@ -137,6 +137,13 @@ export const actions: Action[] = [
     [KeyMap.Actions.InsertMode],
     [Mode.Normal, Mode.Visual, Mode.VisualLine, Mode.Occurrence],
     (vimState, editor) => {
+      // In normal mode, cursor is already positioned before the current character
+      // In visual mode, position cursor before the first character of the selection
+      editor.selections = editor.selections.map((selection) => {
+        const insertPos = selection.start;
+        return new vscode.Selection(insertPos, insertPos);
+      });
+
       enterInsertMode(vimState);
       setModeCursorStyle(vimState.mode, editor);
       removeTypeSubscription(vimState);
@@ -155,7 +162,14 @@ export const actions: Action[] = [
     removeTypeSubscription(vimState);
   }),
 
-  parseKeysExact(['a'], [Mode.Normal], (vimState, editor) => {
+  parseKeysExact(['a'], [Mode.Normal, Mode.Visual], (vimState, editor) => {
+    // Position cursor after the character the cursor is currently before
+    editor.selections = editor.selections.map((selection) => {
+      const currentPos = selection.active;
+      const afterPos = currentPos.with({ character: currentPos.character + 1 });
+      return new vscode.Selection(afterPos, afterPos);
+    });
+
     enterInsertMode(vimState, false);
     setModeCursorStyle(vimState.mode, editor);
     removeTypeSubscription(vimState);
@@ -178,8 +192,11 @@ export const actions: Action[] = [
     setModeCursorStyle(vimState.mode, editor);
   }),
 
-  parseKeysExact(['x'], [Mode.Normal, Mode.Visual], () => {
-    vscode.commands.executeCommand('expandLineSelection');
+  parseKeysExact(['x'], [Mode.Normal, Mode.Visual], (helixState) => {
+    const count = helixState.resolveCount();
+    for (let i = 0; i < count; i++) {
+      vscode.commands.executeCommand('expandLineSelection');
+    }
   }),
 
   parseKeysExact([KeyMap.Actions.NewLineBelow], [Mode.Normal], (vimState, editor) => {
