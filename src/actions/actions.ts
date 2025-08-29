@@ -138,13 +138,18 @@ export const actions: Action[] = [
     [KeyMap.Actions.InsertMode],
     [Mode.Normal, Mode.Visual, Mode.VisualLine, Mode.Occurrence],
     (vimState, editor) => {
+      if (vimState.mode === Mode.Visual || vimState.mode === Mode.VisualLine) {
+        editor.selections = editor.selections.map((selection) => {
+          const start = selection.start.isBeforeOrEqual(selection.end) ? selection.start : selection.end;
+          return new vscode.Selection(start, start);
+        });
+      }
       enterInsertMode(vimState);
       setModeCursorStyle(vimState.mode, editor);
       setRelativeLineNumbers(vimState.mode, editor);
       removeTypeSubscription(vimState);
     },
   ),
-
   parseKeysExact([KeyMap.Actions.InsertAtLineStart], [Mode.Normal], (vimState, editor) => {
     editor.selections = editor.selections.map((selection) => {
       const character = editor.document.lineAt(selection.active.line).firstNonWhitespaceCharacterIndex;
@@ -157,14 +162,12 @@ export const actions: Action[] = [
     setRelativeLineNumbers(vimState.mode, editor);
     removeTypeSubscription(vimState);
   }),
-
   parseKeysExact(['a'], [Mode.Normal], (vimState, editor) => {
     enterInsertMode(vimState, false);
     setModeCursorStyle(vimState.mode, editor);
     setRelativeLineNumbers(vimState.mode, editor);
     removeTypeSubscription(vimState);
   }),
-
   parseKeysExact([KeyMap.Actions.InsertAtLineEnd], [Mode.Normal], (vimState, editor) => {
     editor.selections = editor.selections.map((selection) => {
       const lineLength = editor.document.lineAt(selection.active.line).text.length;
@@ -177,17 +180,14 @@ export const actions: Action[] = [
     setRelativeLineNumbers(vimState.mode, editor);
     removeTypeSubscription(vimState);
   }),
-
   parseKeysExact(['v'], [Mode.Normal, Mode.VisualLine], (vimState, editor) => {
     enterVisualMode(vimState);
     setModeCursorStyle(vimState.mode, editor);
     setRelativeLineNumbers(vimState.mode, editor);
   }),
-
-  parseKeysExact(['x'], [Mode.Normal, Mode.Visual], () => {
+  parseKeysExact(['x'], [Mode.Normal, Mode.Visual, Mode.VisualLine], () => {
     vscode.commands.executeCommand('expandLineSelection');
   }),
-
   parseKeysExact([KeyMap.Actions.NewLineBelow], [Mode.Normal], (vimState, editor) => {
     enterInsertMode(vimState);
     vscode.commands.executeCommand('editor.action.insertLineAfter');
@@ -294,11 +294,30 @@ export const actions: Action[] = [
   }),
 
   parseKeysExact(['C'], [Mode.Normal], (vimState, editor) => {
-    vscode.commands.executeCommand('deleteAllRight');
-    enterInsertMode(vimState);
-    setModeCursorStyle(vimState.mode, editor);
-    setRelativeLineNumbers(vimState.mode, editor);
-    removeTypeSubscription(vimState);
+    // Add one cursor on next suitable line (Helix behavior)
+    // Find the lowest line number from all existing cursors to search from
+    const lowestLine = Math.max(...editor.selections.map(sel => sel.active.line));
+    const referenceSelection = editor.selections.find(sel => sel.active.line === lowestLine);
+    
+    if (!referenceSelection) return;
+    
+    const currentCharacter = referenceSelection.active.character;
+
+    // Find the next line that has enough characters to place cursor at same column
+    let nextSuitableLine = -1;
+    for (let lineNum = lowestLine + 1; lineNum < editor.document.lineCount; lineNum++) {
+      const line = editor.document.lineAt(lineNum);
+      if (line.text.length >= currentCharacter) {
+        nextSuitableLine = lineNum;
+        break;
+      }
+    }
+
+    if (nextSuitableLine !== -1) {
+      const newPosition = new vscode.Position(nextSuitableLine, currentCharacter);
+      const newSelection = new vscode.Selection(newPosition, newPosition);
+      editor.selections = [...editor.selections, newSelection];
+    }
   }),
 
   parseKeysExact(['y', 'y'], [Mode.Normal], (vimState, editor) => {
