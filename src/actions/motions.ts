@@ -420,7 +420,7 @@ function tillBackward(vimState: HelixState, editor: vscode.TextEditor, outerMatc
     const result = searchBackward(document, match[1], fromPosition);
 
     if (result) {
-      return result;
+      return result.with({ character: result.character + 1 });
     } else {
       return position;
     }
