@@ -146,4 +146,32 @@ export const gotoActions: Action[] = [
   parseKeysExact(['g', 'p'], [Mode.Normal], () => {
     commands.executeCommand('workbench.action.previousEditor');
   }),
+
+  parseKeysExact(['G'], [Mode.Normal], (helixState, editor) => {
+    const count = helixState.resolveCount();
+    if (count !== 1) {
+      const range = editor.document.lineAt(count - 1).range;
+      editor.selection = new Selection(range.start, range.end);
+      editor.revealRange(range);
+      return;
+    }
+
+    commands.executeCommand('cursorTop');
+  }),
+
+  parseKeysExact(['G'], [Mode.Visual], (helixState, editor) => {
+    const count = helixState.resolveCount();
+    if (count !== 1) {
+      const position = editor.selection.active;
+      const range = editor.document.lineAt(count - 1).range;
+      if (position.isBefore(range.start)) {
+        editor.selection = new Selection(position, range.end);
+      } else {
+        editor.selection = new Selection(position, range.start);
+      }
+      return;
+    }
+
+    commands.executeCommand('cursorTopSelect');
+  }),
 ];
